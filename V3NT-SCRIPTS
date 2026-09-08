@@ -25,33 +25,12 @@ end
 local PlayerGui = LP:WaitForChild("PlayerGui", 30) or LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
 
 pcall(function()
-	for _, n in ipairs({
-"V3NTHUBHubFullMenu", "V3NTHUBHubFullMini", "V3NTHUBHubModeBar", "V3NTHUBHubActionButtons", "V3NTHUBIntro", "V3NTHUBHubIntro",
-	}) do
-local g = PlayerGui:FindFirstChild(n)
-if g then g:Destroy() end
+	for _, n in ipairs({"V3NTHUBHubFullMenu", "V3NTHUBHubFullMini"}) do
+		local g = PlayerGui:FindFirstChild(n)
+		if g then g:Destroy() end
 	end
 end)
 
-
-----------------------------------------------------------------
--- V3NT HUB LOGO BACKGROUND (shared)
-----------------------------------------------------------------
-
-local function getRyxLogoAsset()
-	return nil
-end
-
-local function applyRyxLogoBg(parent, transparency)
-	return nil
-end
-
-_G.getRyxLogoAsset = getRyxLogoAsset
-_G.applyRyxLogoBg = applyRyxLogoBg
--- preload in background
-task.spawn(function()
-	pcall(getRyxLogoAsset)
-end)
 
 ----------------------------------------------------------------
 -- COLORS / STATE
@@ -63,37 +42,21 @@ local C = {
 	accent = Color3.fromRGB(220, 20, 40), text = Color3.fromRGB(255, 255, 255),
 	textDim = Color3.fromRGB(180, 150, 150), on = Color3.fromRGB(255, 0, 0),
 	off = Color3.fromRGB(40, 40, 52), box = Color3.fromRGB(32, 32, 44),
-	danger = Color3.fromRGB(220, 70, 90),
-	btnOn = Color3.fromRGB(255, 0, 0), -- xanh khi ON (Empire style)
-	btnOff = Color3.fromRGB(16, 16, 22),
 }
 
 
 local St = {
-	antiGummy = true, antiPaint = true, antiBoogie = true,
-	toolAim = true, bodyLock = false, bodyLockRange = 20,
-	keys = {
-Drop = Enum.KeyCode.X,
-DestroySentry = Enum.KeyCode.H,
-AutoSteal = nil, -- nil = None (no key)
-	},
-	esp = false, tracer = false, antiLag = false,
-	antiKick = true, wallOpacity = 0.12,
+	toolAim = true,
+	antiPaintball = false,
+	antiGummy = false,
+	antiBeeDisco = false,
+	esp = false, mineESP = false, tracer = false, antiLag = false,
 	destroySentry = false,
 	spamLaser = false, spamPaint = false,
-	counterLaser = false, counterBoogie = false, counterSwapBody = false,
+	guiLock = false, menuScale = 1, menuOpen = true,
 }
-local ToggleRefs = {} -- để Reset All cập nhật UI
 
 local CFG = "V3NTHUBAllgear.json"
-local _saveToken = 0
-function autoSaveDebounced()
-	_saveToken = _saveToken + 1
-	local t = _saveToken
-	task.delay(0.35, function()
-if t == _saveToken then pcall(saveCfg) end
-	end)
-end
 function _serializeValue(v, depth)
 	depth = depth or 0
 	if depth > 6 then return nil end
@@ -117,37 +80,18 @@ return out
 end
 function saveCfg()
 	local d = {}
-	-- dump TOÀN BỘ St (mọi key có thể JSON được)
 	for k, v in pairs(St) do
-if type(k) == "string" then
--- không lưu base/pet TP — chỉ nhớ vị trí panel
-if k == "_saveBase" or k == "_savePet" or k == "saveBase" or k == "savePet"
-or k == "_delayBase" or k == "_delayPet" then
--- skip
-elseif k == "modes" or k == "keys" then
--- skip, handle below
-else
-local sv = _serializeValue(v)
-if sv ~= nil then d[k] = sv end
-end
-end
-	end
-		d.keys = {}
-	for k, v in pairs(St.keys or {}) do
-d.keys[k] = (typeof(v) == "EnumItem" and v.Name) or tostring(v)
+		if type(k) == "string" then
+			local sv = _serializeValue(v)
+			if sv ~= nil then d[k] = sv end
+		end
 	end
 	local ok, err = pcall(function()
-if not writefile then error("no writefile") end
-d._saveBase = nil
-	d._savePet = nil
-	d.saveBase = nil
-	d.savePet = nil
-	d._delayBase = nil
-	d._delayPet = nil
-	writefile(CFG, HttpService:JSONEncode(d))
+		if not writefile then error("no writefile") end
+		writefile(CFG, HttpService:JSONEncode(d))
 	end)
 	if not ok then
-warn("[V3NTHUB] saveCfg fail:", err)
+		warn("[V3NTHUB] saveCfg fail:", err)
 	end
 	return ok
 end
@@ -166,94 +110,48 @@ end
 end
 end
 	end)
-	if not (ok and type(data) == "table") then return false end
+		if not (ok and type(data) == "table") then return false end
+		local loadable = {
+			toolAim = true, antiPaintball = true, antiGummy = true, antiBeeDisco = true, esp = true, mineESP = true, tracer = true, antiLag = true,
+		destroySentry = true, spamLaser = true, spamPaint = true,
+		guiLock = true, menuScale = true, menuOpen = true,
+		_mainPos = true, _miniPos = true,
+	}
 	for k, v in pairs(data) do
-if type(k) == "string" and k ~= "modes" and k ~= "keys" then
-St[k] = v
-end
+		if loadable[k] then St[k] = v end
 	end
-		if type(data.keys) == "table" then
-St.keys = St.keys or {}
-for k, name in pairs(data.keys) do
-pcall(function() St.keys[k] = Enum.KeyCode[name] end)
-end
-	end
-	if type(data._btnPos) == "table" then St._btnPos = data._btnPos end
-	St.stealRadius = tonumber(St.stealRadius) or 60
-	St.stealVer = St.stealVer or "V1"
-	St.stealBarScale = tonumber(St.stealBarScale) or 1
-	if St.showStealBtn == nil then St.showStealBtn = false end
-	autoStealRadius = St.stealRadius
 	return true
 end
 loadCfg()
--- ANTI KICK (Empire full) — LUÔN BẬT, không bao giờ OFF
+-- ANTI KICK — always on
 ----------------------------------------------------------------
-local AntiKickState = { enabled = true, brainrotDetected = false, conn = nil }
-function enableAntiKick()
-	AntiKickState.enabled = true
-	St.antiKick = true
-	-- namecall Kick shield (executor)
+local function enableAntiKick()
 	pcall(function()
-if hookmetamethod and not _G._FAGAntiKickHooked then
-_G._FAGAntiKickHooked = true
-local old
-old = hookmetamethod(game, "__namecall", function(self, ...)
-local method = (getnamecallmethod and getnamecallmethod()) or ""
-if tostring(method) == "Kick" then
-if self == LP or (typeof(self) == "Instance" and self:IsA("Player") and self == LP) then
-return -- block LocalPlayer:Kick
-end
-end
-return old(self, ...)
-end)
-end
+		if hookmetamethod and not _G._FAGAntiKickHooked then
+			_G._FAGAntiKickHooked = true
+			local old
+			old = hookmetamethod(game, "__namecall", function(self, ...)
+				local method = (getnamecallmethod and getnamecallmethod()) or ""
+				if tostring(method) == "Kick" and (self == LP or (typeof(self) == "Instance" and self:IsA("Player") and self == LP)) then
+					return
+				end
+				return old(self, ...)
+			end)
+		end
 	end)
-	-- block Players.LocalPlayer:Kick via hookfunction if available
 	pcall(function()
-if hookfunction and not _G._FAGKickFnHooked then
-_G._FAGKickFnHooked = true
-local oldKick = LP.Kick
-if typeof(oldKick) == "function" then
-hookfunction(oldKick, function(self, ...)
-return -- never kick self
-end)
-end
-end
+		if hookfunction and not _G._FAGKickFnHooked then
+			_G._FAGKickFnHooked = true
+			local oldKick = LP.Kick
+			if typeof(oldKick) == "function" then
+				hookfunction(oldKick, function()
+					return
+				end)
+			end
+		end
 	end)
-	if AntiKickState.conn then return end
-	AntiKickState.conn = task.spawn(function()
-while true do -- forever
-AntiKickState.enabled = true
-St.antiKick = true
-task.wait(0.5)
-local char = LP.Character
-local found = false
-if char then
-for _, tool in ipairs(char:GetChildren()) do
-if tool:IsA("Tool") then
-local n = tool.Name:lower()
-if n:find("brainrot") or n:find("skibidi") or n:find("toilet") then
-found = true
-break
-end
-end
-end
-end
-AntiKickState.brainrotDetected = found
-end
-	end)
-end
-function disableAntiKick()
-	-- KHÔNG BAO GIỜ TẮT — bỏ qua
-	enableAntiKick()
-end
-function setAntiKick(on)
-	enableAntiKick()
-	saveCfg()
 end
 task.defer(enableAntiKick)
-
 
 
 ----------------------------------------------------------------
@@ -270,9 +168,7 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
-
-local AntiGummy, AntiBoogie, AntiBee = true, true, false -- no Anti Bee
-local ANTI_PAINTBALL_ALWAYS_ON = true
+		local AntiBoogie = false
 
 local function ResetTool(Char)
 if not Char then Char = LocalPlayer.Character end
@@ -282,24 +178,7 @@ LocalPlayer:SetAttribute("BlockTools", false)
 LocalPlayer:SetAttribute("Web", false)
 Char:SetAttribute("BackpackReady", true)
 end)
-end
-
-local function ClearEffect()
-if AntiBee then
-for _, V in pairs(Lighting:GetChildren()) do
-if V.Name == "BeeBlur" or V.Name == "Flashbang" then
-pcall(function() V:Destroy() end)
-end
-end
-local Ctrl = ReplicatedStorage:FindFirstChild("Controllers")
-if Ctrl then
-local BC = Ctrl:FindFirstChild("BeeLauncherController")
-if BC then
-local B = BC:FindFirstChild("Buzzing")
-if B then pcall(function() B:Stop() end) end
-end
-end
-end
+end	local function ClearEffect()
 if AntiBoogie then
 for _, V in pairs(Lighting:GetChildren()) do
 if V.Name == "DiscoEffect" then
@@ -336,7 +215,7 @@ gui.Size = UDim2.fromOffset(6, 6)
 end
 
 local function runAntiPaintballSweep()
-if not ANTI_PAINTBALL_ALWAYS_ON then return end
+	if not St.antiPaintball then return end
 task.spawn(function()
 for _ = 1, 8 do
 local main = getMainHudGui()
@@ -353,21 +232,19 @@ end
 
 -- Paintball continuous sweep
 task.spawn(function()
-while task.wait(0.25) do
-if ANTI_PAINTBALL_ALWAYS_ON then
-pcall(runAntiPaintballSweep)
-end
-end
+		while task.wait(0.25) do
+			if St.antiPaintball then pcall(runAntiPaintballSweep) end
+	end
 end)
 
 -- Heartbeat: Anti Gummy + Boogie/Bee
 RunService.Heartbeat:Connect(function()
-if AntiGummy then
+if St.antiGummy then
 pcall(ResetTool)
 end
-if AntiBoogie or AntiBee then
-pcall(ClearEffect)
-end
+	if AntiBoogie then
+		pcall(ClearEffect)
+	end
 end)
 
 -- Also clear on Lighting child added (instant)
@@ -375,9 +252,6 @@ pcall(function()
 Lighting.ChildAdded:Connect(function(child)
 if not child then return end
 local n = child.Name
-if AntiBee and (n == "BeeBlur" or n == "Flashbang") then
-task.defer(function() pcall(function() child:Destroy() end) end)
-end
 if AntiBoogie and n == "DiscoEffect" then
 task.defer(function() pcall(function() child:Destroy() end) end)
 end
@@ -389,9 +263,9 @@ pcall(function()
 local function hookMain(main)
 if not main or main:GetAttribute("_RyxAntiPaintballHooked") then return end
 main:SetAttribute("_RyxAntiPaintballHooked", true)
-main.ChildAdded:Connect(function(c)
-task.defer(function()
-if isPaintballSplatGui(c) then
+		main.ChildAdded:Connect(function(c)
+			task.defer(function()
+				if St.antiPaintball and isPaintballSplatGui(c) then
 pcall(shrinkPaintballSplat, c)
 end
 end)
@@ -411,7 +285,7 @@ end)
 -- CharacterAdded: ensure tools unblocked
 LocalPlayer.CharacterAdded:Connect(function(char)
 task.defer(function()
-pcall(ResetTool, char)
+if St.antiGummy then pcall(ResetTool, char) end
 end)
 end)
 
@@ -419,20 +293,65 @@ print("[ryx AllGear] Anti Gummy / Boogie / Bee / Paintball ON (silent)")
 	end)
 end
 
--- Setters: luôn ON, không OFF được
-function setAntiGummy(on)
-	St.antiGummy = true
-	AntiFX.gummy = true
-	saveCfg()
+----------------------------------------------------------------
+-- ANTI BEE / DISCO
+----------------------------------------------------------------
+local antiBeeDiscoConn
+local antiBeeDiscoLightingConn
+local antiBeeDiscoLastSweep = 0
+
+local function removeBeeDiscoEffect(obj)
+	if not obj or not obj.Parent then return end
+	local n = string.lower(obj.Name or "")
+	if n:find("disco") or n:find("bee") or n == "blue" or n == "blur"
+		or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect")
+		or obj:IsA("BloomEffect") or obj:IsA("SunRaysEffect")
+		or obj:IsA("DepthOfFieldEffect") or obj:IsA("Atmosphere") then
+		pcall(function() obj:Destroy() end)
+	end
 end
-function setAntiBoogie(on)
-	St.antiBoogie = true
-	AntiFX.boogie = true
-	saveCfg()
+
+local function blockBeeSounds()
+	local function check(container)
+		for _, sound in ipairs(container:GetDescendants()) do
+			if sound:IsA("Sound") then
+				local n = string.lower(sound.Name or "")
+				if n:find("bee") or n:find("buzz") then
+					pcall(function() sound:Stop(); sound.Volume = 0 end)
+				end
+			end
+		end
+	end
+	pcall(function() check(workspace) end)
+	local scripts = LP:FindFirstChild("PlayerScripts")
+	if scripts then pcall(function() check(scripts) end) end
 end
-function setAntiPaint(on)
-	St.antiPaint = true
-	AntiFX.paint = true
+
+local function sweepBeeDisco()
+	if not St.antiBeeDisco then return end
+	pcall(function()
+		for _, obj in ipairs(Lighting:GetDescendants()) do removeBeeDiscoEffect(obj) end
+		blockBeeSounds()
+	end)
+end
+
+local function setAntiBeeDisco(on)
+	St.antiBeeDisco = on and true or false
+	if antiBeeDiscoConn then antiBeeDiscoConn:Disconnect(); antiBeeDiscoConn = nil end
+	if antiBeeDiscoLightingConn then antiBeeDiscoLightingConn:Disconnect(); antiBeeDiscoLightingConn = nil end
+	if St.antiBeeDisco then
+		sweepBeeDisco()
+		antiBeeDiscoLightingConn = Lighting.DescendantAdded:Connect(function(obj)
+			if St.antiBeeDisco then removeBeeDiscoEffect(obj) end
+		end)
+		antiBeeDiscoConn = RS.Heartbeat:Connect(function()
+			if not St.antiBeeDisco then return end
+			local now = os.clock()
+			if now - antiBeeDiscoLastSweep < 0.5 then return end
+			antiBeeDiscoLastSweep = now
+			sweepBeeDisco()
+		end)
+	end
 	saveCfg()
 end
 
@@ -442,7 +361,7 @@ end
 local aimOn = true
 local TOOLS = { ["Web Slinger"] = true, ["Paintball Gun"] = true, ["Laser Cape"] = true }
 local hooked = {}
-local mouseMod, lastAimUp = nil, 0
+local mouseMod
 function getMouse()
 	if mouseMod then return mouseMod end
 	pcall(function()
@@ -515,38 +434,32 @@ if TOOLS[c.Name] then hookTool(c) end
 task.wait(0.05)
 if TOOLS[c.Name] then hookTool(c) end
 	end)
-end
-watchTools(LP.Backpack)
+	end
+	function setToolAim(on)
+		aimOn = on and true or false
+		St.toolAim = aimOn
+		if aimOn then
+			local char = LP.Character
+			if char then pcall(watchTools, char) end
+			local bp = LP:FindFirstChild("Backpack")
+			if bp then pcall(watchTools, bp) end
+		end
+		saveCfg()
+	end
+	watchTools(LP.Backpack)
 if LP.Character then watchTools(LP.Character) end
 LP.CharacterAdded:Connect(function(c)
 	task.wait(0.2)
 	watchTools(c)
 	watchTools(LP.Backpack)
 end)
-RS.RenderStepped:Connect(function()
-	if not aimOn then return end
-	if tick() - lastAimUp > 0.1 then lastAimUp = tick(); bestEnemy() end
-	if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then overrideMouse() end
-end)
-function setToolAim(on)
-	-- LUÔN BẬT tool aimbot
-	aimOn = true
-	St.toolAim = true
-	local char = LP.Character
-	if char then pcall(watchTools, char) end
-	local bp = LP:FindFirstChild("Backpack")
-	if bp then pcall(watchTools, bp) end
-	saveCfg()
-end
--- boot tool aim
-task.defer(function()
-	aimOn = true
-	St.toolAim = true
-	pcall(function()
-if LP.Character then watchTools(LP.Character) end
-if LP.Backpack then watchTools(LP.Backpack) end
+	RS.RenderStepped:Connect(function()
+			if aimOn and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then overrideMouse() end
+		end)
+	-- Restore the saved aimbot state after the tool watchers are ready.
+	task.defer(function()
+		setToolAim(St.toolAim ~= false)
 	end)
-end)
 
 ----------------------------------------------------------------
 -- ESP + TRACER + ANTI LAG
@@ -647,6 +560,117 @@ end
 function setTracer(on)
 	St.tracer = on
 	if St.esp then stopESP(); startESP() end
+	saveCfg()
+end
+
+-- ESP Mine
+local MineESP = { enabled = false, items = {}, folder = nil, conn = nil, watcher = nil }
+local function mineOwnerName(mine)
+	local owner = mine.Name:match("^SubspaceTripmine(.+)$")
+	if not owner then return "Unknown" end
+	local plr = Players:FindFirstChild(owner)
+	return plr and (plr.DisplayName or plr.Name) or owner
+end
+local function clearMineESP()
+	for _, item in pairs(MineESP.items) do
+		pcall(function() item.box:Destroy() end)
+		pcall(function() item.label:Destroy() end)
+	end
+	MineESP.items = {}
+	if MineESP.folder then MineESP.folder:Destroy(); MineESP.folder = nil end
+end
+local function createMineESP(mine)
+	if not mine:IsA("BasePart") then return nil end
+	if not MineESP.folder then
+		MineESP.folder = Instance.new("Folder")
+		MineESP.folder.Name = "V3NT_MineESP"
+		MineESP.folder.Parent = workspace
+	end
+	local own = mine.Name == "SubspaceTripmine" .. LP.Name
+	local color = own and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(220, 55, 55)
+	local box = Instance.new("SelectionBox")
+	box.Name = "V3NT_MineESP_Box"
+	box.Adornee = mine
+	box.Color3 = color
+	box.LineThickness = 0.05
+	box.Parent = MineESP.folder
+	local label = Instance.new("BillboardGui")
+	label.Name = "V3NT_MineESP_Label"
+	label.Adornee = mine
+	label.Size = UDim2.fromOffset(200, 40)
+	label.StudsOffset = Vector3.new(0, 2.5, 0)
+	label.AlwaysOnTop = true
+	label.MaxDistance = 2500
+	label.Parent = MineESP.folder
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+	frame.BackgroundTransparency = 0.45
+	frame.BorderSizePixel = 0
+	frame.Parent = label
+	corner(frame, 6)
+	local outline = stroke(frame, color)
+	outline.Thickness = 1.2
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, -6, 0, 18)
+	nameLabel.Position = UDim2.fromOffset(3, 2)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextSize = 12
+	nameLabel.TextColor3 = Color3.new(1, 1, 1)
+	nameLabel.Text = mineOwnerName(mine) .. "'s Subspace Mine"
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.Parent = frame
+	local distance = Instance.new("TextLabel")
+	distance.Size = UDim2.new(1, -6, 0, 14)
+	distance.Position = UDim2.fromOffset(3, 22)
+	distance.BackgroundTransparency = 1
+	distance.Font = Enum.Font.Gotham
+	distance.TextSize = 11
+	distance.TextColor3 = Color3.fromRGB(210, 210, 210)
+	distance.Parent = frame
+	return { box = box, label = label, mine = mine, distance = distance }
+end
+local function updateMineESP()
+	if not MineESP.enabled then clearMineESP(); return end
+	local toolsAdds = workspace:FindFirstChild("ToolsAdds")
+	local char = LP.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not toolsAdds or not hrp then clearMineESP(); return end
+	if not MineESP.folder then
+		MineESP.folder = Instance.new("Folder")
+		MineESP.folder.Name = "V3NT_MineESP"
+		MineESP.folder.Parent = workspace
+	end
+	local found = {}
+	for _, mine in ipairs(toolsAdds:GetChildren()) do
+		if mine:IsA("BasePart") and mine.Name:match("^SubspaceTripmine") then
+			found[mine] = true
+			local item = MineESP.items[mine]
+			if not item then item = createMineESP(mine); MineESP.items[mine] = item end
+			if item then item.distance.Text = tostring(math.floor((hrp.Position - mine.Position).Magnitude)) .. " studs" end
+		end
+	end
+	for mine, item in pairs(MineESP.items) do
+		if not found[mine] or not mine.Parent then
+			pcall(function() item.box:Destroy(); item.label:Destroy() end)
+			MineESP.items[mine] = nil
+		end
+	end
+end
+local function setMineESP(on)
+	MineESP.enabled = on and true or false
+	St.mineESP = MineESP.enabled
+	if MineESP.conn then MineESP.conn:Disconnect(); MineESP.conn = nil end
+	if MineESP.watcher then MineESP.watcher:Disconnect(); MineESP.watcher = nil end
+	if MineESP.enabled then
+		updateMineESP()
+		MineESP.conn = RS.Heartbeat:Connect(function() updateMineESP() end)
+		local toolsAdds = workspace:FindFirstChild("ToolsAdds")
+		if toolsAdds then MineESP.watcher = toolsAdds.ChildAdded:Connect(function() task.defer(updateMineESP) end) end
+	else
+		clearMineESP()
+	end
 	saveCfg()
 end
 
@@ -895,10 +919,6 @@ function setSpamPaint(on)
 	saveCfg()
 end
 
--- Counter implementation removed by request.
-_G.RYXHUBCounterOnDrop = function() end
-_G.RYXHUBCounterOneShot = function() end
-
 function corner(p, r)
 	local c = Instance.new("UICorner")
 	c.CornerRadius = UDim.new(0, r or 10)
@@ -915,7 +935,7 @@ function stroke(p, col)
 end
 
 local Gui = Instance.new("ScreenGui")
-Gui.Name = "RYXHUBHubFullMenu"
+Gui.Name = "V3NTHUBHubFullMenu"
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
 Gui.DisplayOrder = 200
@@ -1272,89 +1292,10 @@ fireToggle()
 end
 end)
 	end
-	local function setVisualOnly(on)
-state = on and true or false
-TS:Create(track, TweenInfo.new(0.12), { BackgroundColor3 = state and C.on or C.off }):Play()
-TS:Create(knob, TweenInfo.new(0.12), {
-Position = state and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9),
-}):Play()
-	end
-	return {
-set = apply,
-setVisual = setVisualOnly,
-get = function() return state end,
-	}
-end
-function toggleNamed(parent, label, default, cb, order, refName)
-	local api = toggle(parent, label, default, cb, order)
-	if refName then ToggleRefs[refName] = api end
-	return api
-end
-function numBox(parent, pos, w, val, cb)
-	local b = Instance.new("TextBox")
-	b.Size = UDim2.new(0, w, 0, 24)
-	b.Position = pos
-	b.BackgroundColor3 = C.box
-	b.Text = tostring(val)
-	b.TextColor3 = C.text
-	b.TextSize = 12
-	b.Font = Enum.Font.GothamBold
-	b.ClearTextOnFocus = false
-	b.Active = true
-	b.ZIndex = 25
-	b.Parent = parent
-	corner(b, 6)
-	b.FocusLost:Connect(function()
-local n = tonumber(b.Text)
-if n then
-n = math.clamp(n, 1, 200)
-b.Text = tostring(n)
-if cb then cb(n) end
-else
-b.Text = tostring(val)
-end
-	end)
-	return b
-end
-function keyName(k)
-	return k and tostring(k):gsub("Enum.KeyCode.", "") or "?"
-end
-local listening = nil
-function keyBtn(parent, key, onSet, pos)
-	local b = Instance.new("TextButton")
-	b.Size = UDim2.new(0, 36, 0, 24)
-	b.Position = pos or UDim2.new(0, 0, 0, 0)
-	b.BackgroundColor3 = C.box
-	b.Text = keyName(key)
-	b.TextColor3 = C.text
-	b.TextSize = 11
-	b.Font = Enum.Font.GothamBold
-	b.AutoButtonColor = false
-	b.Active = true
-	b.ZIndex = 25
-	b.Parent = parent
-	corner(b, 6)
-	b.MouseButton1Click:Connect(function()
-if listening then return end
-listening = b
-b.Text = "..."
-local conn
-conn = UIS.InputBegan:Connect(function(input, gp)
-if gp or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-if input.KeyCode == Enum.KeyCode.Escape then
-b.Text = keyName(key)
-listening = nil
-conn:Disconnect()
-return
-end
-key = input.KeyCode
-b.Text = keyName(key)
-listening = nil
-conn:Disconnect()
-if onSet then onSet(key) end
-end)
-	end)
-	return b
+		return {
+			set = apply,
+			get = function() return state end,
+		}
 end
 function actionBtn(parent, text, color, cb, order)
 	local r = row(parent, 36, order)
@@ -1384,35 +1325,28 @@ end
 ----------------------------------------------------------------
 -- PLAYER TAB
 ----------------------------------------------------------------
-section(pagePlayer, "* — ANTI", 1)
-toggleNamed(pagePlayer, "Anti Gummy Bear", St.antiGummy, setAntiGummy, 2, "antiGummy")
-
-toggleNamed(pagePlayer, "Anti Paintball Gun", St.antiPaint, setAntiPaint, 4, "antiPaint")
-toggleNamed(pagePlayer, "Anti Boogie Bomb", St.antiBoogie, setAntiBoogie, 5, "antiBoogie")
-
--- Speed controls removed by request.
-
 section(pagePlayer, "* — COMBAT", 20)
-toggleNamed(pagePlayer, "Tool Aimbot", St.toolAim, setToolAim, 21, "toolAim")
-toggleNamed(pagePlayer, "Body Lock", St.bodyLock == true, setBodyLock, 22, "bodyLock")
-do
-	local rr = row(pagePlayer, 36, 22)
-	local rl = Instance.new("TextLabel")
-	rl.Size = UDim2.new(0.55, 0, 1, 0)
-	rl.BackgroundTransparency = 1
-	rl.Text = "Body Lock Range"
-	rl.TextColor3 = C.text
-	rl.TextSize = 12
-	rl.Font = Enum.Font.Gotham
-	rl.TextXAlignment = Enum.TextXAlignment.Left
-	rl.Parent = rr
-	numBox(rr, UDim2.new(1, -70, 0.5, -12), 56, tonumber(St.bodyLockRange) or 20, function(v)
-setBodyLockRange(v)
-	end)
-end
-
--- Infinite Jump toggle removed
-toggleNamed(pagePlayer, "Auto Destroy Sentry", St.destroySentry, setDestroySentry, 216, "destroySentry")
+toggle(pagePlayer, "Tool Aimbot", St.toolAim, setToolAim, 21)
+toggle(pagePlayer, "Auto Destroy Sentry", St.destroySentry, setDestroySentry, 21)
+toggle(pagePlayer, "Anti Paintball Gun", St.antiPaintball, function(on)
+	St.antiPaintball = on and true or false
+	saveCfg()
+end, 22)
+toggle(pagePlayer, "Anti Gummy Bear", St.antiGummy, function(on)
+	St.antiGummy = on and true or false
+	if St.antiGummy and LP.Character then
+		pcall(function()
+			LP:SetAttribute("BlockTools", false)
+			LP:SetAttribute("Web", false)
+			LP.Character:SetAttribute("BackpackReady", true)
+		end)
+	end
+	saveCfg()
+end, 23)
+toggle(pagePlayer, "Anti bee/disco", St.antiBeeDisco, setAntiBeeDisco, 24)
+task.defer(function()
+	if St.antiBeeDisco then setAntiBeeDisco(true) end
+end)
 -- Reset controls removed by request.
 
 -- Key Binds UI removed by request.
@@ -1421,17 +1355,22 @@ toggleNamed(pagePlayer, "Auto Destroy Sentry", St.destroySentry, setDestroySentr
 -- ESP TAB
 ----------------------------------------------------------------
 section(pageESP, "* — ESP", 1)
-toggleNamed(pageESP, "Player ESP", St.esp, setESP, 2, "esp")
-toggleNamed(pageESP, "Tracker / Tracer", St.tracer, setTracer, 3, "tracer")
-toggleNamed(pageESP, "Anti Lag", St.antiLag, setAntiLag, 4, "antiLag")
+toggle(pageESP, "Player ESP", St.esp, setESP, 2, "esp")
+toggle(pageESP, "Tracker / Tracer", St.tracer, setTracer, 3, "tracer")
+toggle(pageESP, "Anti Lag", St.antiLag, setAntiLag, 4, "antiLag")
+toggle(pageESP, "ESP Mine", St.mineESP, setMineESP, 5)
+task.defer(function()
+	if St.antiLag then setAntiLag(true) end
+	if St.mineESP then setMineESP(true) end
+end)
 
 
 ----------------------------------------------------------------
 -- SPAM TAB
 ----------------------------------------------------------------
 section(pageSpam, "* — AUTO SPAM", 1)
-toggleNamed(pageSpam, "Spam Laser Cape", St.spamLaser, setSpamLaser, 2, "spamLaser")
-toggleNamed(pageSpam, "Spam Paintball Gun", St.spamPaint, setSpamPaint, 3, "spamPaint")
+toggle(pageSpam, "Spam Laser Cape", St.spamLaser, setSpamLaser, 2, "spamLaser")
+toggle(pageSpam, "Spam Paintball Gun", St.spamPaint, setSpamPaint, 3, "spamPaint")
 
 -- Counter option and content removed by request.
 
@@ -1448,45 +1387,9 @@ section(pageSet, "* — MOBILE / LOCK", 1)
 	-- Speed bypass panel removed.
 	-- Panel scale/width controls removed.
 
-toggleNamed(pageSet, "Lock UI", St.guiLock, function(on)
+toggle(pageSet, "Lock UI", St.guiLock, function(on)
 	St.guiLock = on and true or false
-	-- snapshot positions then save immediately on lock/unlock
-	pcall(function()
-if Main and Main.Parent then
-St._mainPos = {Main.Position.X.Scale, Main.Position.X.Offset, Main.Position.Y.Scale, Main.Position.Y.Offset}
-St.menuOpen = Main.Visible == true
-end
-local miniGui = PlayerGui:FindFirstChild("RYXHUBHubFullMini")
-local mini = miniGui and miniGui:FindFirstChildWhichIsA("TextButton")
-if mini then
-St._miniPos = {mini.Position.X.Scale, mini.Position.X.Offset, mini.Position.Y.Scale, mini.Position.Y.Offset}
-end
-local mb = PlayerGui:FindFirstChild("RYXHUBHubModeBar")
-local mf = mb and mb:FindFirstChildWhichIsA("Frame")
-if mf then
-St._modeBarPos = {mf.Position.X.Scale, mf.Position.X.Offset, mf.Position.Y.Scale, mf.Position.Y.Offset}
-end
-St._btnPos = St._btnPos or {}
-local function snapHoldersLock(gui)
-if not gui then return end
-for _, holder in ipairs(gui:GetChildren()) do
-if holder:IsA("Frame") or holder:IsA("TextButton") then
-local key = holder.Name
-if key and (key:sub(1,2) == "A_" or key:sub(1,2) == "M_") then
-St._btnPos[key] = {
-holder.Position.X.Scale, holder.Position.X.Offset,
-holder.Position.Y.Scale, holder.Position.Y.Offset,
-holder.Size.X.Offset, holder.Size.Y.Offset,
-}
-end
-end
-end
-end
-snapHoldersLock(PlayerGui:FindFirstChild("RYXHUBHubActionButtons"))
-snapHoldersLock(PlayerGui:FindFirstChild("RYXHUBHubModeBar"))
-	end)
-	pcall(saveCfg)
-end, 3, "guiLock")
+end, 3)
 -- Anti Kick luôn ON — chỉ hiện trạng thái, không OFF được
 do
 	local r = row(pageSet, 32, 4)
@@ -1537,8 +1440,8 @@ for _, info in ipairs({{"-", -72}, {"+", -40}}) do
 	b.ZIndex = 30
 	b.Parent = menuScaleRow
 	corner(b, 6)
-	function fire()
-St.menuScale = math.clamp((St.menuScale or 1) + (info[1] == "+" and 0.05 or -0.05), 0.7, 1.3)
+	local function fire()
+		St.menuScale = math.clamp((St.menuScale or 1) + (info[1] == "+" and 0.05 or -0.05), 0.7, 1.3)
 msVal.Text = tostring(math.floor(St.menuScale * 100)) .. "%"
 applyMenuScale()
 saveCfg()
@@ -1549,14 +1452,7 @@ end
 
 section(pageSet, "* — RESET", 30)
 	-- Reset Mobile Positions removed.
-	actionBtn(pageSet, "Save Now", C.accent, function()
-		local ok = saveCfg()
-		if ok then
-			showToast("SAVED ✓ V3NT ALL GEARS")
-		else
-			showToast("SAVE FAIL (no writefile?)")
-		end
-	end, 32)
+	actionBtn(pageSet, "Save Now", C.accent, saveCfg, 32)
 
 ----------------------------------------------------------------
 -- MINI + CLOSE (no keybind)
@@ -1567,7 +1463,7 @@ MiniGui.ResetOnSpawn = false
 MiniGui.IgnoreGuiInset = true
 MiniGui.DisplayOrder = 121
 MiniGui.Parent = PlayerGui
--- Helper tròn khi menu ẩn (LKZ style) — kéo được, ấn mở menu
+-- Botón compacto cuando el menú está oculto; se puede arrastrar y abrir
 local Mini = Instance.new("TextButton")
 Mini.Size = UDim2.new(0, 150, 0, 42)
 Mini.Position = UDim2.new(0, 14, 0, 90)
@@ -1589,7 +1485,7 @@ miniStroke.Thickness = 2
 miniStroke.Transparency = 0.15
 
 do
-	local dragging, dragStart, startPos, moved
+	local dragging, dragStart, startPos
 	Top.InputBegan:Connect(function(input)
 if St.guiLock then return end
 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1649,11 +1545,7 @@ pcall(saveCfg)
 end
 	end)
 	Mini.MouseButton1Click:Connect(function()
-if moved then return end -- vừa kéo xong không mở menu
-St.menuOpen = true
-saveCfg()
-if moved then return end
-openMenu()
+		if not moved then openMenu() end
 	end)
 end
 
@@ -1702,27 +1594,8 @@ CloseBtn.Active = true
 CloseBtn.ZIndex = 50
 CloseBtn.MouseButton1Click:Connect(closeMenu)
 CloseBtn.Activated:Connect(closeMenu)
-if Helper then
-	Helper.MouseButton1Click:Connect(closeMenu)
-	pcall(function() Helper.Activated:Connect(closeMenu) end)
-end
-
 print("[All Gear] Anti | Aim | ESP")
 
-
--- restore positions on load
-task.defer(function()
-	pcall(function()
-if St._mainPos and Main then
-Main.Position = UDim2.new(St._mainPos[1], St._mainPos[2], St._mainPos[3], St._mainPos[4])
-end
-local miniGui = PlayerGui:FindFirstChild("RYXHUBHubFullMini")
-local mini = miniGui and miniGui:FindFirstChildWhichIsA("TextButton")
-if mini and St._miniPos then
-mini.Position = UDim2.new(St._miniPos[1], St._miniPos[2], St._miniPos[3], St._miniPos[4])
-end
-	end)
-end)
 
 task.defer(function()
 	if St.menuOpen == false then

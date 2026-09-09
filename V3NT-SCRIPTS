@@ -886,22 +886,48 @@ end
 -- SPAM LASER CAPE / PAINTBALL (activate only, no auto-equip)
 ----------------------------------------------------------------
 local spamConn = nil
+local function getSpamTool()
+	local char = LP.Character
+	local bp = LP:FindFirstChildOfClass("Backpack") or LP:FindFirstChild("Backpack")
+	local function find(container, wanted)
+		if not container then return nil end
+		for _, item in ipairs(container:GetChildren()) do
+			if item:IsA("Tool") then
+				local n = string.lower(item.Name)
+				if (wanted == "laser" and n:find("laser"))
+					or (wanted == "paint" and n:find("paintball")) then
+					return item
+				end
+			end
+		end
+	end
+	-- Prioriza la opción que esté activa; si ambas lo están, alterna por
+	-- disponibilidad sin depender de que el nombre coincida exactamente.
+	if St.spamLaser then
+		local t = find(char, "laser") or find(bp, "laser")
+		if t then return t end
+	end
+	if St.spamPaint then
+		local t = find(char, "paint") or find(bp, "paint")
+		if t then return t end
+	end
+	return nil
+end
 function startSpamLoop()
 	if spamConn then return end
 	spamConn = RS.Heartbeat:Connect(function()
-local char = LP.Character
-if not char then return end
-local tool = char:FindFirstChildOfClass("Tool")
-if not tool then return end
-local n = tool.Name
-if St.spamLaser and n == "Laser Cape" then
-if aimOn then overrideMouse() end
-pcall(function() tool:Activate() end)
-elseif St.spamPaint and n == "Paintball Gun" then
-if aimOn then overrideMouse() end
-pcall(function() tool:Activate() end)
-end
-	end)
+	if not St.spamLaser and not St.spamPaint then return end
+	local char = LP.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local tool = getSpamTool()
+	if not tool then return end
+	if tool.Parent ~= char and hum then
+		pcall(function() hum:EquipTool(tool) end)
+		return
+	end
+	if aimOn then overrideMouse() end
+	pcall(function() tool:Activate() end)
+		end)
 end
 function stopSpamLoopIfIdle()
 	if not St.spamLaser and not St.spamPaint then
@@ -1244,7 +1270,8 @@ function toggle(parent, label, default, cb, order)
 	knob.BorderSizePixel = 0
 	knob.Parent = track
 	corner(knob, 9)
-	local state = default
+	-- Normaliza el valor cargado y mantiene UI/funcionalidad en el mismo estado.
+	local state = default and true or false
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, 0, 1, 0)
 	btn.BackgroundTransparency = 1
@@ -1292,6 +1319,9 @@ fireToggle()
 end
 end)
 	end
+	-- Importante: aplicar el estado guardado al crear el control.
+	-- Antes solo se actualizaba al pulsar dos veces el interruptor.
+	if cb then pcall(cb, state) end
 		return {
 			set = apply,
 			get = function() return state end,
@@ -1371,6 +1401,22 @@ end)
 section(pageSpam, "* — AUTO SPAM", 1)
 toggle(pageSpam, "Spam Laser Cape", St.spamLaser, setSpamLaser, 2, "spamLaser")
 toggle(pageSpam, "Spam Paintball Gun", St.spamPaint, setSpamPaint, 3, "spamPaint")
+
+-- Reaplica las opciones dependientes de objetos/conexiones del juego después
+-- de cargar la UI. Algunas experiencias crean las herramientas y torretas
+-- unos instantes después, por lo que una sola activación al inicio puede
+-- ocurrir demasiado pronto.
+task.spawn(function()
+	for _ = 1, 40 do
+		if St.destroySentry then
+			GTurret.AutoDestroyTurret = true
+		end
+		if St.spamLaser or St.spamPaint then
+			startSpamLoop()
+		end
+		task.wait(0.25)
+	end
+end)
 
 -- Counter option and content removed by request.
 
